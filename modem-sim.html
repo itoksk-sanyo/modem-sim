@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>変調シミュレータ — 電波に 0 と 1 を乗せる</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+  :root {
+    --primary: #1F8A3B; --accent: #00C896; --accent-dark: #0E8F6E; --fg: #1A1A2E; --muted: #6B7280;
+    --bg: #F7FAF8; --card: #FFFFFF; --border: #E5E7EB; --primary-tint: #E7F3EB; --accent-tint: #E0F7F1;
+    --amber: #B45309; --amber-tint: #FFF3CD; --gray-tint: #F3F4F6; --danger: #C2410C;
+    --font-jp: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif;
+    --font-num: "Space Grotesk", "Inter", "Helvetica Neue", Arial, sans-serif;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-jp); font-size: 15px; line-height: 1.7; -webkit-font-smoothing: antialiased; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 24px 20px 56px; }
+  header.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 20px; border-bottom: 3px solid var(--primary); padding-bottom: 14px; margin-bottom: 26px; }
+  .eyebrow { font-family: var(--font-num); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--primary); font-weight: 700; }
+  header.top h1 { font-size: clamp(22px, 3vw, 30px); margin: 0; text-wrap: balance; }
+  header.top p { margin: 0; color: var(--muted); font-size: 14px; }
+  .flow { display: grid; gap: 26px; }
+  section.step { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 20px 22px 22px; }
+  section.step > h2 { display: flex; align-items: center; gap: 12px; font-size: 18px; margin: 0 0 6px; }
+  section.step h3 { font-size: 15px; margin: 18px 0 6px; display: flex; align-items: center; gap: 8px; }
+  .num { font-family: var(--font-num); font-weight: 700; font-size: 13px; letter-spacing: .06em; color: var(--card); background: var(--primary); border-radius: 4px; padding: 2px 9px; }
+  .sub { font-family: var(--font-num); font-weight: 700; font-size: 12px; color: var(--accent-dark); background: var(--accent-tint); border-radius: 4px; padding: 2px 8px; }
+  .lead { color: var(--muted); margin: 0 0 16px; font-size: 14px; }
+  .btn { font: 500 14px var(--font-jp); padding: 9px 16px; border-radius: 4px; border: 1.5px solid var(--primary); background: var(--primary); color: var(--card); cursor: pointer; }
+  .btn.secondary { background: var(--card); color: var(--primary); }
+  .locked-note { color: var(--accent-dark); font-weight: 500; }
+
+  /* 予想 */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-weight: 500; margin-bottom: 6px; }
+  .radio { display: flex; gap: 14px; flex-wrap: wrap; }
+  .radio label { display: inline-flex; align-items: center; gap: 6px; font-weight: 400; margin: 0; cursor: pointer; }
+  .predict-actions { margin-top: 6px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  /* 動かす */
+  canvas.wave { width: 100%; height: auto; display: block; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+  .seg { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 4px; }
+  .seg button { font: 500 13px var(--font-jp); padding: 7px 12px; border-radius: 4px; border: 1.5px solid var(--border); background: var(--card); color: var(--fg); cursor: pointer; }
+  .seg button.on { border-color: var(--primary); background: var(--primary-tint); color: var(--primary); font-weight: 700; }
+  .seg button.seen { border-color: var(--accent); }
+  .readouts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  .tile { background: var(--primary-tint); border-radius: 6px; padding: 10px 12px 8px; min-width: 150px; }
+  .tile .k { font-size: 12px; color: var(--muted); }
+  .tile .v { font: 700 24px var(--font-num); line-height: 1.25; }
+  .tile .v small { font-size: 13px; font-weight: 500; }
+  .state-note { margin: 8px 0 0; font-size: 13.5px; color: var(--muted); }
+
+  /* パリティ */
+  .bits { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+  .bit { font: 700 20px var(--font-num); width: 44px; height: 44px; border-radius: 6px; border: 2px solid var(--border); background: var(--gray-tint); color: var(--muted); cursor: pointer; }
+  .bit.one { background: var(--primary); border-color: var(--primary); color: var(--card); }
+  .bit.parity { border-style: dashed; }
+  .bit.rx { cursor: pointer; }
+  .bit.flipped { border-color: var(--danger); color: var(--danger); background: #FDF0E8; }
+  .bitlbl { font-size: 12px; color: var(--muted); }
+  .verdict { font-weight: 700; margin-top: 6px; }
+  .verdict.ok { color: var(--accent-dark); }
+  .verdict.ng { color: var(--danger); }
+  .arrow { color: var(--muted); font-size: 20px; }
+
+  /* チェック */
+  .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .check { display: grid; grid-template-columns: 28px 1fr; gap: 12px; align-items: start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; }
+  .check .box { width: 24px; height: 24px; border: 2px solid var(--border); border-radius: 4px; display: grid; place-items: center; font: 700 14px var(--font-num); color: var(--card); margin-top: 3px; }
+  .check.done { border-color: var(--primary); background: var(--primary-tint); }
+  .check.done .box { background: var(--primary); border-color: var(--primary); }
+  .check .t { font-weight: 500; }
+  .check .fb { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .check.done .fb { color: var(--fg); }
+  .progress { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; }
+  .bar { flex: 1; height: 8px; background: var(--gray-tint); border-radius: 999px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0%; background: var(--primary); transition: width .3s; }
+  .progress b { font-family: var(--font-num); font-size: 15px; }
+
+  /* ずれ */
+  table.gap { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.gap th, table.gap td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.gap th { font-weight: 500; color: var(--muted); font-size: 12px; letter-spacing: .04em; }
+  table.gap td.n { font-family: var(--font-num); font-weight: 700; }
+  textarea { width: 100%; min-height: 84px; font: 400 15px var(--font-jp); padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 4px; background: var(--card); color: var(--fg); resize: vertical; }
+  .note-label { display: block; font-weight: 500; margin: 16px 0 6px; }
+  .actions { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+  footer.model { margin-top: 26px; font-size: 12.5px; color: var(--muted); line-height: 1.8; }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span class="eyebrow">第二級デジタル通信 / 伝送技術 — 電波と光で運ぶ</span>
+    <h1>変調シミュレータ</h1>
+    <p>キャリア（搬送波）に信号を乗せる。AM・FM・デジタル変調の波形と、多値化・パリティの仕組みを自分で確かめる</p>
+  </header>
+
+  <div class="flow">
+
+    <!-- S -->
+    <section class="step" id="predict" aria-labelledby="h-predict">
+      <h2 id="h-predict"><span class="num">S</span>まず予想する（動かす前に書く）</h2>
+      <p class="lead">下の 3 つを予想してから動かす。外れてもよい。ずれたところが今日の学びどころ。</p>
+      <div class="field">
+        <label id="l-p1">予想 1: 1 kHz の音を直接電波にして飛ばすには、アンテナはどれくらい必要？（波長の半分が目安）</label>
+        <div class="radio" role="radiogroup" aria-labelledby="l-p1">
+          <label><input type="radio" name="p1" value="30cm"> 30 cm</label>
+          <label><input type="radio" name="p1" value="30m"> 30 m</label>
+          <label><input type="radio" name="p1" value="150km"> 150 km</label>
+        </div>
+      </div>
+      <div class="field">
+        <label id="l-p2">予想 2: 256QAM は 1 シンボル（1 回の波の変化）で何 bit 運べる？</label>
+        <div class="radio" role="radiogroup" aria-labelledby="l-p2">
+          <label><input type="radio" name="p2" value="2"> 2 bit</label>
+          <label><input type="radio" name="p2" value="8"> 8 bit</label>
+          <label><input type="radio" name="p2" value="256"> 256 bit</label>
+        </div>
+      </div>
+      <div class="field">
+        <label id="l-p3">予想 3: 偶数パリティ（1 の個数を偶数にする検査ビット）で見つけられるのは？</label>
+        <div class="radio" role="radiogroup" aria-labelledby="l-p3">
+          <label><input type="radio" name="p3" value="1bit"> 1 ビットの誤りだけ</label>
+          <label><input type="radio" name="p3" value="2bit"> 2 ビットの誤りまで</label>
+          <label><input type="radio" name="p3" value="all"> どんな誤りでも全部</label>
+        </div>
+      </div>
+      <div class="predict-actions">
+        <button class="btn" id="lock">予想を固定して動かす</button>
+        <button class="btn secondary" id="unlock" hidden>予想を直す</button>
+        <span class="locked-note" id="locked-note" hidden>予想を固定した。ここからは動かして確かめる番</span>
+      </div>
+    </section>
+
+    <!-- L -->
+    <section class="step" id="sim" aria-labelledby="h-sim">
+      <h2 id="h-sim"><span class="num">L</span>動かして、ずれに気づく</h2>
+
+      <h3><span class="sub">L-1</span>アナログ変調とデジタル変調の波形</h3>
+      <p class="lead">上が信号（運びたいもの）、下がキャリアに乗せた後の波。方式を切り替えて、何が変わるかを見る。</p>
+      <div class="seg" id="mod-seg" role="group" aria-label="変調方式の切り替え">
+        <button data-m="AM" class="on">AM（振幅）</button>
+        <button data-m="FM">FM（周波数）</button>
+        <button data-m="ASK">ASK（強弱）</button>
+        <button data-m="FSK">FSK（高低）</button>
+        <button data-m="PSK">PSK（位相）</button>
+      </div>
+      <canvas class="wave" id="cv" width="1440" height="520" role="img" aria-label="信号波と変調後の波形"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--primary)"></i>信号（上: アナログ波 or 0/1 ビット）</span>
+        <span><i style="background:#1A1A2E"></i>変調後のキャリア（下）</span>
+      </div>
+      <p class="state-note" id="mod-note"></p>
+
+      <h3><span class="sub">L-2</span>多値変調 — 1 シンボルで何 bit 運べる?</h3>
+      <p class="lead">信号点（コンスタレーション）の数 M を増やすと、1 回の波の変化で運べる bit 数が増える。代わりに点と点の間隔は狭まる。</p>
+      <div class="seg" id="qam-seg" role="group" aria-label="多値変調の切り替え">
+        <button data-q="4">QPSK（4 点）</button>
+        <button data-q="16" class="on">16QAM（16 点）</button>
+        <button data-q="64">64QAM（64 点）</button>
+      </div>
+      <canvas class="wave" id="cvq" width="760" height="520" style="max-width:520px" role="img" aria-label="コンスタレーション図"></canvas>
+      <div class="readouts" aria-live="polite">
+        <div class="tile"><div class="k">信号点数 M</div><div class="v" id="r-m">16</div></div>
+        <div class="tile"><div class="k">1 シンボルあたり</div><div class="v" id="r-k">4 <small>bit</small></div></div>
+        <div class="tile"><div class="k">20 Mbaud なら</div><div class="v" id="r-r">80 <small>Mbps</small></div></div>
+      </div>
+      <p class="state-note" id="qam-note"></p>
+
+      <h3><span class="sub">L-3</span>パリティチェッカー — 誤りを見つけられる?</h3>
+      <p class="lead">4 bit のデータに偶数パリティ（全体の 1 の個数が偶数になる検査ビット）を付けて送る。受信側でビットを反転させて、何が起きるか見る。</p>
+      <div>
+        <span class="bitlbl">送信データ（クリックで切替）:</span>
+        <div class="bits" id="tx-bits"></div>
+        <span class="bitlbl">→ 偶数パリティ P を付けると:</span>
+        <div class="bits" id="tx-code"></div>
+        <span class="bitlbl">受信側（クリックで誤りを入れる = ビット反転）:</span>
+        <div class="bits" id="rx-bits"></div>
+      </div>
+      <div class="verdict" id="verdict"></div>
+      <p class="state-note" id="par-note"></p>
+    </section>
+
+    <!-- O -->
+    <section class="step" id="check" aria-labelledby="h-check">
+      <h2 id="h-check"><span class="num">O</span>原理チェック — 自分で再現できたら印がつく</h2>
+      <p class="lead">説明を聞いて「わかった」つもりのことを、操作で再現する。4 つとも自力で出せたら、原理は自分のものになっている。</p>
+      <div class="progress"><div class="bar"><i id="bar"></i></div><b id="prog">0 / 4</b></div>
+      <ul class="checks">
+        <li class="check" id="c1"><div class="box" aria-hidden="true"></div><div><div class="t">AM と FM を切り替えて、「振幅が変わる」「周波数（粗密）が変わる」の違いを見た</div><div class="fb">やり方: L-1 で AM と FM の両方を表示する</div></div></li>
+        <li class="check" id="c2"><div class="box" aria-hidden="true"></div><div><div class="t">ASK・FSK・PSK の 3 つで、0 と 1 がキャリアの何を変えるか確認した</div><div class="fb">やり方: L-1 で ASK → FSK → PSK を順に表示する</div></div></li>
+        <li class="check" id="c3"><div class="box" aria-hidden="true"></div><div><div class="t">QPSK（2 bit）と 64QAM（6 bit）を比べて、点が増えると速いが間隔が狭まることを見た</div><div class="fb">やり方: L-2 で QPSK と 64QAM を切り替える</div></div></li>
+        <li class="check" id="c4"><div class="box" aria-hidden="true"></div><div><div class="t">パリティで 1 ビット誤りは検出でき、2 ビット同時だと見逃すことを確かめた</div><div class="fb">やり方: L-3 で受信ビットを 1 個反転 → 2 個反転する</div></div></li>
+      </ul>
+    </section>
+
+    <!-- W -->
+    <section class="step" id="gap" aria-labelledby="h-gap">
+      <h2 id="h-gap"><span class="num">W</span>予想とのずれを言葉にする</h2>
+      <p class="lead">ずれたことは間違いではない。意外だったところが、今日いちばん学べたところ。</p>
+      <table class="gap">
+        <thead><tr><th>項目</th><th>自分の予想</th><th>確かめた結果</th><th>ずれ</th></tr></thead>
+        <tbody>
+          <tr><td>1 kHz を直接飛ばすアンテナ</td><td class="n" id="g1p">—</td><td class="n" id="g1s">150 km（波長 300 km の半分）</td><td id="g1d">—</td></tr>
+          <tr><td>256QAM の bit 数</td><td class="n" id="g2p">—</td><td class="n" id="g2s">8 bit（256 ＝ 2⁸）</td><td id="g2d">—</td></tr>
+          <tr><td>偶数パリティが見つけられる誤り</td><td class="n" id="g3p">—</td><td class="n" id="g3s">まだ確かめていない</td><td id="g3d">—</td></tr>
+        </tbody>
+      </table>
+      <label class="note-label" for="note">いちばん意外だったこと・まだモヤっとしていること（ワークシート ⑥ に写す）</label>
+      <textarea id="note" placeholder="例: 256QAM は 256 bit ではなく 8 bit だった。点の数と bit 数が違うのが意外だった"></textarea>
+      <div class="actions">
+        <button class="btn secondary" id="reset">記録をリセット</button>
+        <span class="visually-hidden" id="save-status" aria-live="polite"></span>
+      </div>
+    </section>
+  </div>
+
+  <footer class="model">
+    このシミュレータの中身: 学習用の単純化モデル。実際の電波はもっと高い周波数（AM ラジオで約 1,000 kHz、Wi-Fi で 2,400,000 kHz）。
+    コンスタレーションは信号点の「振幅と位相」の配置図。実務の変調器はこの点を 1 シンボルごとに打ち替えてデータを運ぶ。
+    パリティは最も簡単な誤り検出。実務では CRC や誤り訂正符号（FEC）が組み合わされている。
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("modemsim." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem("modemsim." + k, JSON.stringify(v)); } catch { /* noop */ } },
+    clear() { try { Object.keys(localStorage).filter(k => k.startsWith("modemsim.")).forEach(k => localStorage.removeItem(k)); } catch { /* noop */ } },
+  };
+  const S = {
+    locked: store.get("locked", false),
+    pred: store.get("pred", { p1: "", p2: "", p3: "" }),
+    checks: store.get("checks", { c1: false, c2: false, c3: false, c4: false }),
+    note: store.get("note", ""),
+  };
+  const seen = { mod: {}, qam: {}, parOdd: false, parEvenEscape: false };
+
+  // ── L-1 変調波形 ──
+  const cv = $("cv"), ctx = cv.getContext("2d");
+  const BITS = [1, 0, 1, 1, 0, 0, 1, 0];
+  let mode = "AM";
+  const FC = 20; // キャリア周期数/窓
+  function sigAnalog(t) { return Math.sin(2 * Math.PI * 2 * t); }
+  function sigBit(t) { return BITS[Math.min(BITS.length - 1, Math.floor(t * BITS.length))]; }
+  function drawMod() {
+    const W = cv.width, H = cv.height;
+    const topMid = H * 0.22, topAmp = H * 0.14, botMid = H * 0.68, botAmp = H * 0.2;
+    ctx.clearRect(0, 0, W, H);
+    ctx.strokeStyle = "#D8DDD9"; ctx.lineWidth = 1;
+    [topMid, botMid].forEach(y => { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); });
+    const digital = (mode === "ASK" || mode === "FSK" || mode === "PSK");
+    // 上: 信号
+    ctx.strokeStyle = "#1F8A3B"; ctx.lineWidth = 3.5; ctx.beginPath();
+    for (let x = 0; x <= W; x++) {
+      const t = x / W;
+      const y = digital ? topMid - (sigBit(t) * 2 - 1) * topAmp : topMid - sigAnalog(t) * topAmp;
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    if (digital) { // ビットラベル
+      ctx.fillStyle = "#6B7280"; ctx.font = "22px 'Space Grotesk'"; ctx.textAlign = "center";
+      BITS.forEach((b, i) => ctx.fillText(String(b), (i + 0.5) / BITS.length * W, 30));
+    }
+    // 下: 変調波
+    ctx.strokeStyle = "#1A1A2E"; ctx.lineWidth = 2.2; ctx.beginPath();
+    let phase = 0, prevT = 0;
+    for (let x = 0; x <= W; x++) {
+      const t = x / W, dt = t - prevT; prevT = t;
+      let y;
+      if (mode === "AM") {
+        y = botMid - (1 + 0.75 * sigAnalog(t)) * botAmp * 0.62 * Math.sin(2 * Math.PI * FC * t);
+      } else if (mode === "FM") {
+        phase += 2 * Math.PI * FC * (1 + 0.38 * sigAnalog(t)) * dt;
+        y = botMid - botAmp * 0.62 * Math.sin(phase);
+      } else if (mode === "ASK") {
+        y = botMid - (sigBit(t) ? 1 : 0.12) * botAmp * 0.62 * Math.sin(2 * Math.PI * FC * t);
+      } else if (mode === "FSK") {
+        phase += 2 * Math.PI * FC * (sigBit(t) ? 1.35 : 0.65) * dt;
+        y = botMid - botAmp * 0.62 * Math.sin(phase);
+      } else { // PSK
+        y = botMid - botAmp * 0.62 * Math.sin(2 * Math.PI * FC * t + (sigBit(t) ? 0 : Math.PI));
+      }
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    const notes = {
+      AM: "AM: 信号の大きさに合わせてキャリアの「高さ（振幅）」が変わる。雷などのノイズも振幅に乗るので弱い。",
+      FM: "FM: 信号の大きさに合わせてキャリアの「粗密（周波数）」が変わる。振幅ノイズを切り捨てられるので強い。",
+      ASK: "ASK: ビット 1 ＝ キャリア大、0 ＝ 小。単純だが振幅ノイズに弱い（光通信のオンオフなどに使う）。",
+      FSK: "FSK: ビット 1 ＝ 高い周波数、0 ＝ 低い周波数。振幅が変わらないのでノイズに強い。",
+      PSK: "PSK: ビット 1 と 0 で位相が 180° 反転する（波がひっくり返る）。電力が一定で雑音にとても強い。",
+    };
+    $("mod-note").textContent = notes[mode];
+    seen.mod[mode] = true;
+    evaluateChecks();
+  }
+  document.querySelectorAll("#mod-seg button").forEach(b => b.addEventListener("click", () => {
+    mode = b.dataset.m;
+    document.querySelectorAll("#mod-seg button").forEach(x => x.classList.toggle("on", x === b));
+    drawMod();
+  }));
+
+  // ── L-2 コンスタレーション ──
+  const cvq = $("cvq"), ctxq = cvq.getContext("2d");
+  let qam = 16;
+  function drawQam() {
+    const W = cvq.width, H = cvq.height, cx = W / 2, cy = H / 2, R = Math.min(W, H) * 0.4;
+    ctxq.clearRect(0, 0, W, H);
+    ctxq.strokeStyle = "#D8DDD9"; ctxq.lineWidth = 1.5;
+    ctxq.beginPath(); ctxq.moveTo(cx - R * 1.15, cy); ctxq.lineTo(cx + R * 1.15, cy); ctxq.stroke();
+    ctxq.beginPath(); ctxq.moveTo(cx, cy - R * 1.15); ctxq.lineTo(cx, cy + R * 1.15); ctxq.stroke();
+    ctxq.fillStyle = "#6B7280"; ctxq.font = "20px 'Space Grotesk'"; ctxq.textAlign = "left";
+    ctxq.fillText("I（同相）", cx + R * 0.95, cy - 10);
+    ctxq.fillText("Q（直交）", cx + 10, cy - R * 0.98);
+    const pts = [];
+    if (qam === 4) {
+      [[1, 1], [-1, 1], [-1, -1], [1, -1]].forEach(([i, q]) => pts.push([i * 0.72, q * 0.72]));
+    } else {
+      const L = Math.sqrt(qam); // 4 or 8
+      for (let i = 0; i < L; i++) for (let j = 0; j < L; j++) pts.push([(i / (L - 1)) * 2 - 1, (j / (L - 1)) * 2 - 1]);
+    }
+    pts.forEach(([i, q]) => {
+      ctxq.fillStyle = "#1F8A3B";
+      ctxq.beginPath(); ctxq.arc(cx + i * R, cy - q * R, qam === 64 ? 7 : 11, 0, 2 * Math.PI); ctxq.fill();
+    });
+    const k = Math.log2(qam);
+    $("r-m").textContent = qam;
+    $("r-k").innerHTML = k + " <small>bit</small>";
+    $("r-r").innerHTML = (20 * k) + " <small>Mbps</small>";
+    $("qam-note").textContent = qam === 4
+      ? "QPSK: 4 点 ＝ 2 bit/シンボル。点の間隔が広く、雑音に強い。"
+      : qam === 16
+        ? "16QAM: 16 点 ＝ 4 bit/シンボル。地デジや Wi-Fi の基本形。"
+        : "64QAM: 64 点 ＝ 6 bit/シンボル。速いが点が密で、雑音に弱くなる（高い SNR が必要）。";
+    seen.qam[qam] = true;
+    evaluateChecks();
+  }
+  document.querySelectorAll("#qam-seg button").forEach(b => b.addEventListener("click", () => {
+    qam = +b.dataset.q;
+    document.querySelectorAll("#qam-seg button").forEach(x => x.classList.toggle("on", x === b));
+    drawQam();
+  }));
+
+  // ── L-3 パリティ ──
+  let data = [1, 1, 0, 1];
+  let rx = [];
+  function parity(d) { return d.reduce((a, b) => a + b, 0) % 2 === 0 ? 0 : 1; }
+  function renderParity() {
+    const P = parity(data);
+    if (rx.length !== 5) rx = [...data, P];
+    const tx = $("tx-bits"); tx.innerHTML = "";
+    data.forEach((b, i) => {
+      const btn = document.createElement("button");
+      btn.className = "bit" + (b ? " one" : ""); btn.textContent = b;
+      btn.setAttribute("aria-label", "データビット " + (i + 1) + " を切り替える");
+      btn.addEventListener("click", () => { data[i] = 1 - data[i]; rx = []; renderParity(); });
+      tx.appendChild(btn);
+    });
+    const tc = $("tx-code"); tc.innerHTML = "";
+    [...data, P].forEach((b, i) => {
+      const s = document.createElement("span");
+      s.className = "bit" + (b ? " one" : "") + (i === 4 ? " parity" : ""); s.textContent = b;
+      tc.appendChild(s);
+    });
+    const rb = $("rx-bits"); rb.innerHTML = "";
+    rx.forEach((b, i) => {
+      const btn = document.createElement("button");
+      const orig = [...data, P][i];
+      btn.className = "bit rx" + (b ? " one" : "") + (b !== orig ? " flipped" : "");
+      btn.textContent = b;
+      btn.setAttribute("aria-label", "受信ビット " + (i + 1) + " を反転する");
+      btn.addEventListener("click", () => { rx[i] = 1 - rx[i]; renderParity(); });
+      rb.appendChild(btn);
+    });
+    const ones = rx.reduce((a, b) => a + b, 0);
+    const flips = rx.filter((b, i) => b !== [...data, P][i]).length;
+    const v = $("verdict");
+    if (ones % 2 === 0) {
+      v.textContent = "1 の個数 ＝ " + ones + "（偶数）→ 正常と判定";
+      v.className = "verdict ok";
+    } else {
+      v.textContent = "1 の個数 ＝ " + ones + "（奇数）→ 誤り検出! 再送を要求";
+      v.className = "verdict ng";
+    }
+    $("par-note").textContent = flips === 0
+      ? "受信ビットをクリックすると誤り（反転）を入れられる。1 個反転と 2 個反転を試してみる。"
+      : flips % 2 === 1
+        ? "奇数個の反転 → 必ず検出できる。"
+        : "偶数個の反転 → 1 の個数の偶奇が変わらないので見逃す。これがパリティの限界。";
+    if (flips % 2 === 1 && flips >= 1) seen.parOdd = true;
+    if (flips === 2) seen.parEvenEscape = true;
+    evaluateChecks();
+  }
+  renderParity();
+
+  // ── 予想 UI ──
+  const radios = { p1: [...document.querySelectorAll('input[name="p1"]')], p2: [...document.querySelectorAll('input[name="p2"]')], p3: [...document.querySelectorAll('input[name="p3"]')] };
+  function readPred() {
+    for (const k of ["p1", "p2", "p3"]) S.pred[k] = (radios[k].find(r => r.checked) || {}).value || "";
+    store.set("pred", S.pred); renderGap();
+  }
+  function applyPredUI() {
+    for (const k of ["p1", "p2", "p3"]) radios[k].forEach(r => { r.checked = r.value === S.pred[k]; r.disabled = S.locked; });
+    $("lock").hidden = S.locked; $("unlock").hidden = !S.locked; $("locked-note").hidden = !S.locked;
+  }
+  $("lock").addEventListener("click", () => { readPred(); S.locked = true; store.set("locked", true); applyPredUI(); });
+  $("unlock").addEventListener("click", () => { S.locked = false; store.set("locked", false); applyPredUI(); });
+  Object.values(radios).flat().forEach(el => el.addEventListener("change", readPred));
+
+  // ── チェック ──
+  const FB = {
+    c1: "再現できた。AM は振幅（高さ）、FM は周波数（粗密）が信号で変わる。FM は振幅ノイズを切り捨てられる。",
+    c2: "再現できた。ASK ＝ 強弱、FSK ＝ 高低、PSK ＝ 位相反転。デジタル変調は 0/1 をキャリアの変化に対応させる。",
+    c3: "再現できた。M 点 ＝ log₂M bit。点を増やすと速くなるが、間隔が狭まり雑音に弱くなるトレードオフ。",
+    c4: "再現できた。偶数パリティは奇数個の誤りを必ず検出するが、偶数個（2 ビット同時など）は見逃す。",
+  };
+  function evaluateChecks() {
+    const c = S.checks;
+    if (!c.c1 && seen.mod.AM && seen.mod.FM) c.c1 = true;
+    if (!c.c2 && seen.mod.ASK && seen.mod.FSK && seen.mod.PSK) c.c2 = true;
+    if (!c.c3 && seen.qam[4] && seen.qam[64]) c.c3 = true;
+    if (!c.c4 && seen.parOdd && seen.parEvenEscape) c.c4 = true;
+    store.set("checks", c);
+    let n = 0;
+    for (const k of ["c1", "c2", "c3", "c4"]) {
+      const li = $(k), done = c[k];
+      li.classList.toggle("done", done);
+      li.querySelector(".box").textContent = done ? "✓" : "";
+      if (done) { li.querySelector(".fb").innerHTML = FB[k]; n++; }
+    }
+    $("prog").textContent = n + " / 4";
+    $("bar").style.width = (n / 4 * 100) + "%";
+    renderGap();
+  }
+
+  // ── ずれ表 ──
+  function renderGap() {
+    const p = S.pred;
+    const label = {
+      p1: { "30cm": "30 cm", "30m": "30 m", "150km": "150 km" },
+      p2: { "2": "2 bit", "8": "8 bit", "256": "256 bit" },
+      p3: { "1bit": "1 ビットの誤りだけ", "2bit": "2 ビットの誤りまで", "all": "どんな誤りでも全部" },
+    };
+    $("g1p").textContent = label.p1[p.p1] || "—";
+    $("g1d").textContent = !p.p1 ? "予想が未記入" : p.p1 === "150km" ? "予想どおり" : "ずれ: 正解は 150 km";
+    $("g2p").textContent = label.p2[p.p2] || "—";
+    $("g2d").textContent = !p.p2 ? "予想が未記入" : p.p2 === "8" ? "予想どおり" : "ずれ: 正解は 8 bit";
+    $("g3p").textContent = label.p3[p.p3] || "—";
+    if (S.checks.c4) {
+      $("g3s").textContent = "1 ビットは検出、2 ビット同時は見逃す";
+      $("g3d").textContent = !p.p3 ? "予想が未記入" : p.p3 === "1bit" ? "予想どおり" : "ずれ: 見つけられるのは奇数個の誤り";
+    } else { $("g3s").textContent = "まだ確かめていない（L-3 で反転させる）"; $("g3d").textContent = "—"; }
+  }
+
+  // ── メモ・リセット ──
+  const note = $("note");
+  note.value = S.note;
+  note.addEventListener("input", () => { S.note = note.value; store.set("note", S.note); $("save-status").textContent = "保存した"; });
+  $("reset").addEventListener("click", () => {
+    if (!confirm("予想・チェック・メモをすべて消す。よい？")) return;
+    store.clear();
+    S.locked = false; S.pred = { p1: "", p2: "", p3: "" }; S.checks = { c1: false, c2: false, c3: false, c4: false }; S.note = "";
+    note.value = ""; data = [1, 1, 0, 1]; rx = [];
+    seen.mod = {}; seen.qam = {}; seen.parOdd = false; seen.parEvenEscape = false;
+    applyPredUI(); renderParity(); drawMod(); drawQam();
+  });
+
+  applyPredUI();
+  drawMod();
+  drawQam();
+})();
+</script>
+</body>
+</html>
